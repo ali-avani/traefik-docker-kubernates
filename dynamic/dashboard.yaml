@@ -1,0 +1,14 @@
+http:
+  routers:
+    traefik-dashboard:
+      rule: Host(`<dashboard-domain>`)
+      tls:
+        certResolver: le
+      service: api@internal
+      middlewares:
+        - traefik-auth@file
+  middlewares:
+    traefik-auth:
+      basicAuth:
+        users:
+          - "username:password"

@@ -1,0 +1,38 @@
+services:
+  traefik:
+    image: traefik:v3.5
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - KUBECONFIG=/kube/kubeconfig.yaml
+    env_file:
+      - .env
+    command:
+      - "--log.level=INFO"
+
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.kubernetesingress=true"
+      - "--providers.kubernetesingress.ingressclass=traefik"
+      - "--providers.kubernetescrd=true"
+      - "--providers.kubernetescrd.ingressclass=traefik"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+
+      - "--api.dashboard=true"
+
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.websecure.asDefault=true"
+
+      - "--certificatesresolvers.le.acme.email=$ACME_EMAIL"
+      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.le.acme.httpchallenge=true"
+      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./letsencrypt:/letsencrypt
+      - ./kubeconfig:/kube/kubeconfig:ro
+      - ./dynamic:/etc/traefik/dynamic
