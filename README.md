@@ -45,10 +45,27 @@ Update the configuration files with your specific values:
 
 - Replace `<dashboard-domain>` with your actual dashboard domain (e.g., `traefik.yourdomain.com`)
 
-#### In `kubeconfig.sample.yaml`:
+#### Copy and Configure Kubeconfig
 
-- Replace `<certificate-authority-data>` with your cluster's CA data
-- Replace `<token>` with the Traefik service account token
+Copy the kubeconfig template and fill in the values:
+
+```bash
+cp kubeconfig.sample.yaml kubeconfig.yaml
+```
+
+Edit `kubeconfig.yaml` and replace:
+
+- `<certificate-authority-data>` with the output:
+
+```bash
+kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}'
+```
+
+- `<token>` with the output:
+
+```bash
+kubectl -n kube-system create token traefik
+```
 
 ### 4. Generate Dashboard Authentication
 
@@ -62,32 +79,7 @@ Replace `username` with your desired username. This command will prompt for a pa
 
 Copy this output and replace the `username:password` line in `dynamic/dashboard.yaml` under the `users` section.
 
-### 5. Configure Kubernetes Access
-
-#### Get Certificate Authority Data
-
-```bash
-kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}'
-```
-
-#### Create Service Account Token
-
-```bash
-kubectl -n kube-system create token traefik
-```
-
-Copy the kubeconfig template and fill in the values:
-
-```bash
-cp kubeconfig.sample.yaml kubeconfig.yaml
-```
-
-Edit `kubeconfig.yaml` and replace:
-
-- `<certificate-authority-data>` with the output from the certificate command
-- `<token>` with the output from the token command
-
-### 6. Start Traefik
+### 5. Start Traefik
 
 Create the Let's Encrypt directory and start the services:
 
