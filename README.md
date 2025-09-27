@@ -45,6 +45,16 @@ Update the configuration files with your specific values:
 
 - Replace `<dashboard-domain>` with your actual dashboard domain (e.g., `traefik.yourdomain.com`)
 
+Create a username and password for the Traefik dashboard:
+
+```bash
+htpasswd -nB username
+```
+
+Replace `username` with your desired username. This command will prompt for a password and output a string like `username:$2y$10$...`.
+
+Copy this output and replace the `username:password` line in `dynamic/dashboard.yaml` under the `users` section.
+
 #### Copy and Configure Kubeconfig
 
 Copy the kubeconfig template and fill in the values:
@@ -67,19 +77,7 @@ kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authori
 kubectl -n kube-system create token traefik
 ```
 
-### 4. Generate Dashboard Authentication
-
-Create a username and password for the Traefik dashboard:
-
-```bash
-htpasswd -nB username
-```
-
-Replace `username` with your desired username. This command will prompt for a password and output a string like `username:$2y$10$...`.
-
-Copy this output and replace the `username:password` line in `dynamic/dashboard.yaml` under the `users` section.
-
-### 5. Start Traefik
+### 4. Start Traefik
 
 Create the Let's Encrypt directory and start the services:
 
