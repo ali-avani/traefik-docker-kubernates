@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     network_mode: host
     environment:
-      - KUBECONFIG=/kube/kubeconfig.yaml
+      - KUBECONFIG=/kube/kubeconfig
     env_file:
       - .env
     command:
@@ -34,5 +34,5 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./letsencrypt:/letsencrypt
-      - ./kubeconfig:/kube/kubeconfig:ro
+      - ./kubeconfig.yaml:/kube/kubeconfig:ro
       - ./dynamic:/etc/traefik/dynamic
