@@ -19,7 +19,7 @@ die()  { echo "Error: $*" >&2; exit 1; }
 info() { echo "==> $*"; }
 warn() { echo "Warning: $*" >&2; }
 
-usage() { sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; }
 
 for arg in "$@"; do
     case "$arg" in
