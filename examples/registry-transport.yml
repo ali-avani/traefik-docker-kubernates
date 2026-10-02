@@ -1,0 +1,7 @@
+http:
+  serversTransports:
+    registry-transport:
+      forwardingTimeouts:
+        dialTimeout: 30s
+        responseHeaderTimeout: 120s
+        idleConnTimeout: 600s

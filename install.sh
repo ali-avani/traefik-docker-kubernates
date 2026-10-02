@@ -154,11 +154,29 @@ validate_inputs() {
         || die "ADMIN_USER may only contain letters, digits, '.', '_' and '-'"
     [[ "$TRAEFIK_VERSION" =~ ^[A-Za-z0-9._-]+$ ]] \
         || die "invalid TRAEFIK_VERSION: $TRAEFIK_VERSION"
+    [[ -z "${TRAEFIK_IMAGE:-}" || "$TRAEFIK_IMAGE" =~ ^[A-Za-z0-9._:/-]+$ ]] \
+        || die "invalid TRAEFIK_IMAGE: $TRAEFIK_IMAGE"
+    [[ -z "${ADMIN_PASSWORD_HASH:-}" || "$ADMIN_PASSWORD_HASH" != *[\"[:space:]]* ]] \
+        || die "ADMIN_PASSWORD_HASH must not contain spaces or double quotes"
+}
+
+build_compose_file() {
+    COMPOSE_FILE="docker-compose.yaml"
+    [[ "$INSTALL_TYPE" == "kubernetes" ]] && COMPOSE_FILE+=":docker-compose.kubernetes.yaml"
+    if [[ -f docker-compose.override.yaml ]]; then
+        COMPOSE_FILE+=":docker-compose.override.yaml"
+        info "Using docker-compose.override.yaml"
+    fi
+    export COMPOSE_FILE
 }
 
 write_dashboard() {
     local entry
-    entry="$(hash_password "$ADMIN_USER" "$ADMIN_PASSWORD")"
+    if [[ -n "${ADMIN_PASSWORD_HASH:-}" ]]; then
+        entry="${ADMIN_USER}:${ADMIN_PASSWORD_HASH}"
+    else
+        entry="$(hash_password "$ADMIN_USER" "$ADMIN_PASSWORD")"
+    fi
     mkdir -p dynamic
     umask 077
     cat > dynamic/dashboard.yaml <<EOF
@@ -248,22 +266,17 @@ main() {
     ask DASHBOARD_DOMAIN "Dashboard domain (e.g. traefik.example.com)"
     ask ACME_EMAIL "Email for Let's Encrypt"
     ask ADMIN_USER "Dashboard admin username" "admin"
-    ask_password
+    [[ -n "${ADMIN_PASSWORD_HASH:-}" ]] || ask_password
     ask TRAEFIK_VERSION "Traefik version" "v3.7"
     validate_inputs
-
-    if [[ "$INSTALL_TYPE" == "kubernetes" ]]; then
-        COMPOSE_FILE="docker-compose.yaml:docker-compose.kubernetes.yaml"
-    else
-        COMPOSE_FILE="docker-compose.yaml"
-    fi
-    export COMPOSE_FILE
+    build_compose_file
 
     set_env INSTALL_TYPE "$INSTALL_TYPE"
     set_env DASHBOARD_DOMAIN "$DASHBOARD_DOMAIN"
     set_env ACME_EMAIL "$ACME_EMAIL"
     set_env ADMIN_USER "$ADMIN_USER"
     set_env TRAEFIK_VERSION "$TRAEFIK_VERSION"
+    [[ -n "${TRAEFIK_IMAGE:-}" ]] && set_env TRAEFIK_IMAGE "$TRAEFIK_IMAGE"
     set_env COMPOSE_FILE "$COMPOSE_FILE"
     info "Saved settings to $ENV_FILE"
 
