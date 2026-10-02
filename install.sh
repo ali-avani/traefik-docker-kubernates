@@ -50,18 +50,47 @@ load_env() {
     done < "$ENV_FILE"
 }
 
-# Write KEY='VALUE' to .env, replacing an existing KEY line.
-set_env() {
-    local key="$1" val="$2" tmp
-    touch "$ENV_FILE"
-    chmod 600 "$ENV_FILE"
+# Print a .env value: plain when safe, single-quoted otherwise.
+quote_env() {
+    if [[ "$1" =~ ^[A-Za-z0-9._:/@+,=-]+$ ]]; then
+        printf '%s' "$1"
+    else
+        printf "'%s'" "${1//\'/\'\\\'\'}"
+    fi
+}
+
+write_env() {
+    local sample=".env.sample" tmp line key val known=" "
+    local other=()
+    [[ -f "$sample" ]] || die "$sample not found"
     tmp="$(mktemp)"
-    KEY="$key" LINE="${key}='${val//\'/\'\\\'\'}'" awk '
-        index($0, ENVIRON["KEY"] "=") == 1 { print ENVIRON["LINE"]; done = 1; next }
-        { print }
-        END { if (!done) print ENVIRON["LINE"] }
-    ' "$ENV_FILE" > "$tmp"
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        if [[ "$line" =~ ^(#[[:space:]]*)?([A-Z][A-Z0-9_]*)= ]]; then
+            key="${BASH_REMATCH[2]}"
+            known+="$key "
+            val="${!key:-}"
+            if [[ -n "$val" ]]; then
+                line="${key}=$(quote_env "$val")"
+            fi
+        fi
+        printf '%s\n' "$line"
+    done < "$sample" > "$tmp"
+
+    if [[ -f "$ENV_FILE" ]]; then
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            [[ "$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)= ]] || continue
+            key="${BASH_REMATCH[1]}"
+            [[ "$known" == *" $key "* ]] && continue
+            other+=("$line")
+        done < "$ENV_FILE"
+    fi
+    if [[ ${#other[@]} -gt 0 ]]; then
+        { echo; echo "# Other settings kept from the previous $ENV_FILE"; printf '%s\n' "${other[@]}"; } >> "$tmp"
+    fi
+
     cat "$tmp" > "$ENV_FILE"
+    chmod 600 "$ENV_FILE"
     rm -f "$tmp"
 }
 
@@ -234,7 +263,6 @@ setup_kubernetes() {
     default_server="$("${kctl[@]}" config view --raw --minify \
         -o jsonpath='{.clusters[0].cluster.server}')"
     ask K8S_API_SERVER "Kubernetes API server URL" "$default_server"
-    set_env K8S_API_SERVER "$K8S_API_SERVER"
 
     umask 077
     cat > kubeconfig.yaml <<EOF
@@ -271,24 +299,16 @@ main() {
     validate_inputs
     build_compose_file
 
-    set_env INSTALL_TYPE "$INSTALL_TYPE"
-    set_env DASHBOARD_DOMAIN "$DASHBOARD_DOMAIN"
-    set_env ACME_EMAIL "$ACME_EMAIL"
-    set_env ADMIN_USER "$ADMIN_USER"
-    set_env TRAEFIK_VERSION "$TRAEFIK_VERSION"
-    [[ -n "${TRAEFIK_IMAGE:-}" ]] && set_env TRAEFIK_IMAGE "$TRAEFIK_IMAGE"
-    set_env COMPOSE_FILE "$COMPOSE_FILE"
-    info "Saved settings to $ENV_FILE"
-
     write_dashboard
+    unset ADMIN_PASSWORD     # only needed to hash it; keep it out of .env
+    write_env
+    info "Saved settings to $ENV_FILE"
     mkdir -p letsencrypt
 
     if [[ "$INSTALL_TYPE" == "kubernetes" ]]; then
         setup_kubernetes
-    fi
-
-    if [[ -n "${ADMIN_PASSWORD:-}" ]] && grep -q '^ADMIN_PASSWORD=.' "$ENV_FILE" 2>/dev/null; then
-        warn "ADMIN_PASSWORD is stored in $ENV_FILE; remove it now that the install is done."
+        export K8S_API_SERVER
+        write_env
     fi
 
     if $START; then

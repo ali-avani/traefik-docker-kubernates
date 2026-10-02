@@ -67,7 +67,7 @@ cp .env.sample .env
 | `DASHBOARD_DOMAIN`  | Domain for the dashboard                                             |
 | `ACME_EMAIL`        | Email for Let's Encrypt                                              |
 | `ADMIN_USER`        | Dashboard username (default `admin`)                                 |
-| `ADMIN_PASSWORD`    | Dashboard password, read only by the installer. Remove it afterwards |
+| `ADMIN_PASSWORD`    | Dashboard password, read only by the installer, which clears it from `.env` |
 | `ADMIN_PASSWORD_HASH` | Instead of `ADMIN_PASSWORD`: a ready htpasswd hash (single-quote it in `.env`) |
 | `TRAEFIK_VERSION`   | Traefik image tag (default `v3.7`)                                   |
 | `TRAEFIK_IMAGE`     | Image repository, to use a mirror such as `hub.hamdocker.ir/traefik` (default `traefik`) |
