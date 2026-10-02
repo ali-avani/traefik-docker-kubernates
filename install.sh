@@ -223,8 +223,6 @@ http:
   routers:
     traefik-dashboard:
       rule: Host(\`${DASHBOARD_DOMAIN}\`)
-      tls:
-        certResolver: le
       service: api@internal
       middlewares:
         - traefik-auth@file
