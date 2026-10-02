@@ -1,0 +1,23 @@
+# Per-server additions. Uncomment what you need, save as docker-compose.override.yaml,
+# then run bash ./install.sh --update-env so it is added to COMPOSE_FILE.
+# Environment keys are added to the base file, and a volume with the same container
+# path replaces the base one.
+
+# services:
+#   traefik:
+#     environment:
+#       # Longer read timeout for large uploads, e.g. container registry pushes
+#       TRAEFIK_ENTRYPOINTS_WEBSECURE_TRANSPORT_RESPONDINGTIMEOUTS_READTIMEOUT: 1800s
+#       # Allow %2F in request paths, e.g. GitLab API project paths
+#       TRAEFIK_ENTRYPOINTS_WEBSECURE_HTTP_ENCODEDCHARACTERS_ALLOWENCODEDSLASH: "true"
+#       # Use only this Docker network to reach containers on several networks
+#       TRAEFIK_PROVIDERS_DOCKER_NETWORK: traefik
+#     volumes:
+#       # Certificates in an existing named volume instead of ./letsencrypt
+#       - traefik-certs:/letsencrypt
+#       # Extra read-only mount, e.g. your own certificates for examples/tls.yml
+#       - /root/ssl:/certs:ro
+#
+# volumes:
+#   traefik-certs:
+#     external: true
