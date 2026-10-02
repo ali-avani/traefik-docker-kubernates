@@ -4,9 +4,11 @@
 # Every value is read from the environment or from .env first and only asked
 # for when missing. Chosen values are saved back to .env (except the password).
 #
-# Usage: bash ./install.sh [--yes] [--no-start]
-#   --yes, -y    never prompt; fail if a required value is missing
-#   --no-start   write the configuration but do not start Traefik
+# Usage: bash ./install.sh [--yes] [--no-start] [--update-env]
+#   --yes, -y     never prompt; fail if a required value is missing
+#   --no-start    write the configuration but do not start Traefik
+#   --update-env  only rebuild .env from .env.sample (for example after a
+#                 git pull), keep your values, then exit
 
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
@@ -14,6 +16,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 ENV_FILE=".env"
 NON_INTERACTIVE=false
 START=true
+UPDATE_ENV=false
 
 die()  { echo "Error: $*" >&2; exit 1; }
 info() { echo "==> $*"; }
@@ -25,6 +28,7 @@ for arg in "$@"; do
     case "$arg" in
         --yes|-y)   NON_INTERACTIVE=true ;;
         --no-start) START=false ;;
+        --update-env) UPDATE_ENV=true ;;
         -h|--help)  usage; exit 0 ;;
         *)          die "unknown option: $arg (see --help)" ;;
     esac
@@ -60,10 +64,16 @@ quote_env() {
 }
 
 write_env() {
-    local sample=".env.sample" tmp line key val known=" "
-    local other=()
+    local sample=".env.sample" tmp line key val known=" " old=" "
+    local other=() added=()
     [[ -f "$sample" ]] || die "$sample not found"
     tmp="$(mktemp)"
+
+    if [[ -f "$ENV_FILE" ]]; then
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            [[ "$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)= ]] && old+="${BASH_REMATCH[1]} "
+        done < "$ENV_FILE"
+    fi
 
     while IFS= read -r line || [[ -n "$line" ]]; do
         if [[ "$line" =~ ^(#[[:space:]]*)?([A-Z][A-Z0-9_]*)= ]]; then
@@ -72,6 +82,10 @@ write_env() {
             val="${!key:-}"
             if [[ -n "$val" ]]; then
                 line="${key}=$(quote_env "$val")"
+            fi
+            # an uncommented sample key that the old .env did not have
+            if [[ -z "${BASH_REMATCH[1]}" && "$key" != "ADMIN_PASSWORD" && "$old" != *" $key "* && -f "$ENV_FILE" ]]; then
+                added+=("$key")
             fi
         fi
         printf '%s\n' "$line"
@@ -88,6 +102,8 @@ write_env() {
     if [[ ${#other[@]} -gt 0 ]]; then
         { echo; echo "# Other settings kept from the previous $ENV_FILE"; printf '%s\n' "${other[@]}"; } >> "$tmp"
     fi
+    [[ ${#added[@]} -eq 0 ]] || info "New in .env.sample, added to $ENV_FILE: ${added[*]}"
+    [[ ${#other[@]} -eq 0 ]] || info "Not in .env.sample, kept at the end of $ENV_FILE: ${other[*]%%=*}"
 
     cat "$tmp" > "$ENV_FILE"
     chmod 600 "$ENV_FILE"
@@ -185,8 +201,6 @@ validate_inputs() {
         || die "invalid TRAEFIK_VERSION: $TRAEFIK_VERSION"
     [[ -z "${TRAEFIK_IMAGE:-}" || "$TRAEFIK_IMAGE" =~ ^[A-Za-z0-9._:/-]+$ ]] \
         || die "invalid TRAEFIK_IMAGE: $TRAEFIK_IMAGE"
-    [[ -z "${ADMIN_PASSWORD_HASH:-}" || "$ADMIN_PASSWORD_HASH" != *[\"[:space:]]* ]] \
-        || die "ADMIN_PASSWORD_HASH must not contain spaces or double quotes"
 }
 
 build_compose_file() {
@@ -201,11 +215,7 @@ build_compose_file() {
 
 write_dashboard() {
     local entry
-    if [[ -n "${ADMIN_PASSWORD_HASH:-}" ]]; then
-        entry="${ADMIN_USER}:${ADMIN_PASSWORD_HASH}"
-    else
-        entry="$(hash_password "$ADMIN_USER" "$ADMIN_PASSWORD")"
-    fi
+    entry="$(hash_password "$ADMIN_USER" "$ADMIN_PASSWORD")"
     mkdir -p dynamic
     umask 077
     cat > dynamic/dashboard.yaml <<EOF
@@ -290,11 +300,18 @@ EOF
 main() {
     load_env
 
+    if $UPDATE_ENV; then
+        unset ADMIN_PASSWORD
+        write_env
+        info "Updated $ENV_FILE from .env.sample"
+        exit 0
+    fi
+
     ask_install_type
     ask DASHBOARD_DOMAIN "Dashboard domain (e.g. traefik.example.com)"
     ask ACME_EMAIL "Email for Let's Encrypt"
     ask ADMIN_USER "Dashboard admin username" "admin"
-    [[ -n "${ADMIN_PASSWORD_HASH:-}" ]] || ask_password
+    ask_password
     ask TRAEFIK_VERSION "Traefik version" "v3.7"
     validate_inputs
     build_compose_file

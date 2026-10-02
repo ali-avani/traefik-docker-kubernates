@@ -68,7 +68,6 @@ bash ./install.sh --yes
 | `ACME_EMAIL`        | Email for Let's Encrypt                                              |
 | `ADMIN_USER`        | Dashboard username (default `admin`)                                 |
 | `ADMIN_PASSWORD`    | Dashboard password, read only by the installer, which clears it from `.env` |
-| `ADMIN_PASSWORD_HASH` | Instead of `ADMIN_PASSWORD`: a ready htpasswd hash (single-quote it in `.env`) |
 | `TRAEFIK_VERSION`   | Traefik image tag (default `v3.7`)                                   |
 | `TRAEFIK_IMAGE`     | Image repository, to use a mirror such as `hub.hamdocker.ir/traefik` (default `traefik`) |
 | `TRAEFIK_LOG_LEVEL` | `DEBUG`, `INFO`, `WARN` or `ERROR` (default `INFO`)                  |
@@ -78,6 +77,20 @@ bash ./install.sh --yes
 
 To change the Traefik version later, edit `TRAEFIK_VERSION` in `.env` and run
 `docker compose up -d`.
+
+### Updating `.env` after a `git pull`
+
+When `.env.sample` gains new variables, rebuild `.env` from it without touching
+anything else:
+
+```bash
+bash ./install.sh --update-env
+```
+
+Your values are kept, new variables are added with their sample defaults, and
+unknown keys stay at the end. The script prints what it added. It does not ask
+questions, rewrite `dashboard.yaml` or restart Traefik.
+
 
 ## How it works
 
@@ -193,8 +206,10 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.myapp.rule=Host(`myapp.example.com`)"
-      - "traefik.http.routers.myapp.tls.certresolver=le"
 ```
+
+HTTPS and the Let's Encrypt certificate (`le` resolver) are the default for the
+`websecure` entry point, so no `tls` or `certresolver` label is needed.
 
 ### Kubernetes Ingress (`kubernetes` type)
 
