@@ -1,138 +1,149 @@
 # Traefik Docker + Kubernetes Setup
 
-This project sets up Traefik as a reverse proxy and load balancer that works with both Docker containers and Kubernetes ingress resources. It includes automatic SSL certificate generation via Let's Encrypt and a secure dashboard.
+Traefik as a reverse proxy and load balancer for Docker containers, optionally
+together with Kubernetes Ingress resources. It includes automatic SSL
+certificates via Let's Encrypt and a password-protected dashboard.
+
+An install script sets everything up. You choose one of two installation types:
+
+| Type         | What it does                                                          |
+| ------------ | --------------------------------------------------------------------- |
+| `docker`     | Traefik with the Docker provider only                                 |
+| `kubernetes` | Docker provider plus the Kubernetes Ingress and CRD providers         |
 
 ## Prerequisites
 
-- Docker and Docker Compose
-- Kubernetes cluster access
-- `kubectl` configured and working
-- `htpasswd` utility (usually comes with Apache utils)
+- Docker with Docker Compose v2 (`docker compose`)
+- `htpasswd` (apache2-utils / httpd-tools) or `openssl`, to hash the dashboard password
+- For `kubernetes` only: `kubectl` configured for the cluster, with permission to
+  apply cluster-wide RBAC
+- A DNS record for the dashboard domain pointing at this server (needed for the
+  Let's Encrypt HTTP challenge)
 
-## Setup Instructions
+## Install
 
-### 1. Copy and Configure Environment File
+```bash
+./install.sh
+```
 
-First, create your environment configuration:
+The script asks for:
+
+- installation type (`docker` or `kubernetes`)
+- dashboard domain, for example `traefik.example.com`
+- Let's Encrypt email
+- dashboard admin username and password
+- Traefik version (default `v3.7`)
+
+Then it:
+
+1. saves the answers to `.env` (the password is never saved)
+2. writes `dynamic/dashboard.yaml` with the domain and a hashed password
+3. for `kubernetes`: applies `traefik.yaml` (IngressClass, ServiceAccount, RBAC,
+   token Secret) with `kubectl`, then writes `kubeconfig.yaml` from the cluster CA,
+   the ServiceAccount token and the API server URL
+4. starts Traefik with `docker compose up -d` (asks first)
+
+Options:
+
+```bash
+./install.sh --yes        # never prompt, fail if a value is missing
+./install.sh --no-start   # write the configuration only
+```
+
+### Unattended install with `.env`
+
+Every value is read from the environment or `.env` first, and only asked for
+when missing:
 
 ```bash
 cp .env.sample .env
+# fill in INSTALL_TYPE, DASHBOARD_DOMAIN, ACME_EMAIL, ADMIN_USER, ADMIN_PASSWORD
+./install.sh --yes
 ```
 
-Edit the `.env` file and fill in the required values:
+| Variable            | Description                                                          |
+| ------------------- | -------------------------------------------------------------------- |
+| `INSTALL_TYPE`      | `docker` or `kubernetes`                                             |
+| `DASHBOARD_DOMAIN`  | Domain for the dashboard                                             |
+| `ACME_EMAIL`        | Email for Let's Encrypt                                              |
+| `ADMIN_USER`        | Dashboard username (default `admin`)                                 |
+| `ADMIN_PASSWORD`    | Dashboard password, read only by the installer. Remove it afterwards |
+| `TRAEFIK_VERSION`   | Traefik image tag (default `v3.7`)                                   |
+| `TRAEFIK_LOG_LEVEL` | `DEBUG`, `INFO`, `WARN` or `ERROR` (default `INFO`)                  |
+| `KUBECTL_CONTEXT`   | Kubernetes only: kubectl context (default: current)                  |
+| `K8S_API_SERVER`    | Kubernetes only: API URL for `kubeconfig.yaml` (default: from kubectl) |
+| `COMPOSE_FILE`      | Set by the installer, selects the compose files                      |
 
-- `ACME_EMAIL`: Your email address for Let's Encrypt certificate registration
+To change the Traefik version later, edit `TRAEFIK_VERSION` in `.env` and run
+`docker compose up -d`.
 
-### 2. Apply Traefik Kubernetes Resources
+## How it works
 
-Apply the Traefik RBAC and ServiceAccount configuration to your Kubernetes cluster:
+- `docker-compose.yaml` is the base stack (Docker provider only).
+- `docker-compose.kubernetes.yaml` is an overlay that adds the Kubernetes
+  providers and mounts `kubeconfig.yaml`. The installer enables it by setting
+  `COMPOSE_FILE=docker-compose.yaml:docker-compose.kubernetes.yaml` in `.env`.
+- Static configuration is passed as `TRAEFIK_*` environment variables, so the
+  overlay can add to it. Traefik does not allow mixing flags and environment
+  variables.
+- `COMPOSE_FILE` in `.env` is read by Docker Compose v2. If your tool ignores it
+  (for example `podman-compose`), pass the files with `-f` instead.
 
-```bash
-kubectl apply -f traefik.yaml
-```
+To switch the installation type, run `./install.sh` again with a different
+`INSTALL_TYPE`.
 
-This creates:
+## Configuration details
 
-- `traefik` IngressClass
-- `traefik` ServiceAccount in `kube-system` namespace
-- ClusterRole and ClusterRoleBinding for proper permissions
+### Ports and entry points
 
-### 3. Replace Placeholders in YAML Files
-
-Update the configuration files with your specific values:
-
-#### In `dynamic/dashboard.yaml`:
-
-- Replace `<dashboard-domain>` with your actual dashboard domain (e.g., `traefik.yourdomain.com`)
-
-Create a username and password for the Traefik dashboard:
-
-```bash
-htpasswd -nB username
-```
-
-Replace `username` with your desired username. This command will prompt for a password and output a string like `username:$2y$10$...`.
-
-Copy this output and replace the `username:password` line in `dynamic/dashboard.yaml` under the `users` section.
-
-#### Copy and Configure Kubeconfig
-
-Copy the kubeconfig template and fill in the values:
-
-```bash
-cp kubeconfig.sample.yaml kubeconfig.yaml
-```
-
-Edit `kubeconfig.yaml` and replace:
-
-- `<certificate-authority-data>` with the output:
-
-```bash
-kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}'
-```
-
-- `<token>` with the output:
-
-```bash
-kubectl -n kube-system create token traefik
-```
-
-### 4. Start Traefik
-
-Create the Let's Encrypt directory and start the services:
-
-```bash
-mkdir -p letsencrypt
-docker compose up -d
-```
-
-## Configuration Details
-
-### Ports and Entry Points
-
-- **Port 80 (web)**: HTTP traffic, automatically redirects to HTTPS
+- **Port 80 (web)**: HTTP traffic, redirects to HTTPS
 - **Port 443 (websecure)**: HTTPS traffic, default entry point
 
-### SSL Certificates
+### SSL certificates
 
-- Automatic SSL certificate generation via Let's Encrypt
-- HTTP challenge validation
-- Certificates stored in `./letsencrypt/acme.json`
+- Automatic certificates via Let's Encrypt, HTTP challenge
+- Stored in `./letsencrypt/acme.json`
 
-### Dashboard Access
+### Dashboard
 
-Once running, access the Traefik dashboard at:
-
-- `https://<dashboard-domain>` (configured in `dynamic/dashboard.yaml`)
-- Use the username/password you generated with `htpasswd`
+Available at `https://<DASHBOARD_DOMAIN>` with the username and password you
+gave the installer. To change the password, set `ADMIN_PASSWORD` and run
+`./install.sh --yes` again, or edit `dynamic/dashboard.yaml` with a hash from
+`htpasswd -nB username`.
 
 ### Providers
 
-Traefik is configured to watch:
-
 - Docker containers (with labels)
-- Kubernetes Ingress resources
-- Kubernetes CRDs (IngressRoute, etc.)
-- File-based configuration in `./dynamic/`
+- Kubernetes Ingress and CRDs (`kubernetes` type only)
+- File configuration in `./dynamic/`
 
-## Directory Structure
+### Kubernetes access
+
+`traefik.yaml` creates a `traefik` ServiceAccount with read-only RBAC and a
+`traefik-token` Secret with a long-lived token. The old approach,
+`kubectl create token`, expires after one hour. The token ends up in
+`kubeconfig.yaml` (mode 600, not committed). Delete the Secret to revoke it.
+
+## Directory structure
 
 ```
 .
-├── docker-compose.yaml     # Main Traefik container configuration
-├── traefik.yaml           # Kubernetes RBAC and ServiceAccount
-├── dynamic/
-│   └── dashboard.yaml     # Dashboard routing and authentication
-├── kubeconfig.sample.yaml # Template for Kubernetes access
-├── .env.sample           # Environment variables template
-└── README.md             # This file
+├── install.sh                      # Interactive / unattended installer
+├── docker-compose.yaml             # Base stack (Docker provider)
+├── docker-compose.kubernetes.yaml  # Overlay: Kubernetes providers
+├── traefik.yaml                    # Kubernetes IngressClass, RBAC, token Secret
+├── dynamic/                        # File provider directory
+│   └── dashboard.yaml              # Generated by install.sh (not committed)
+├── .env.sample                     # Variables template
+├── kubeconfig.yaml                 # Generated by install.sh (not committed)
+└── README.md
 ```
 
 ## Usage
 
-### Docker Services
+### Docker services
 
-To expose a Docker service through Traefik, add labels to your container:
+Add labels to a container:
 
 ```yaml
 services:
@@ -144,9 +155,9 @@ services:
       - "traefik.http.routers.myapp.tls.certresolver=le"
 ```
 
-### Kubernetes Ingress
+### Kubernetes Ingress (`kubernetes` type)
 
-Create standard Kubernetes Ingress resources with `ingressClassName: traefik`:
+Create standard Ingress resources with `ingressClassName: traefik`:
 
 ```yaml
 apiVersion: networking.k8s.io/v1
@@ -170,27 +181,22 @@ spec:
 
 ## Troubleshooting
 
-### Check Traefik Logs
-
 ```bash
 docker compose logs -f traefik
-```
-
-### Verify Kubernetes Permissions
-
-```bash
 kubectl auth can-i get ingresses --as=system:serviceaccount:kube-system:traefik
 ```
 
-## Security Notes
+## Security notes
 
 - The dashboard is protected with HTTP Basic Authentication
-- All HTTP traffic is automatically redirected to HTTPS
-- Let's Encrypt certificates are automatically renewed
-- Traefik has read-only access to Docker socket
+- HTTP is redirected to HTTPS
+- Traefik has read-only access to the Docker socket
 - Kubernetes access is limited by RBAC rules
+- `.env` and `kubeconfig.yaml` are created with mode 600 and are git-ignored
+- The compose file does not pass `.env` to the container, so the admin password
+  is not exposed in the container environment
 
-## Stopping the Service
+## Stopping
 
 ```bash
 docker compose down
@@ -199,6 +205,5 @@ docker compose down
 To also remove the Let's Encrypt certificates:
 
 ```bash
-docker compose down -v
 rm -rf letsencrypt/
 ```

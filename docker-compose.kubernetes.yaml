@@ -1,0 +1,10 @@
+services:
+  traefik:
+    environment:
+      KUBECONFIG: /kube/kubeconfig
+      TRAEFIK_PROVIDERS_KUBERNETESINGRESS: "true"
+      TRAEFIK_PROVIDERS_KUBERNETESINGRESS_INGRESSCLASS: traefik
+      TRAEFIK_PROVIDERS_KUBERNETESCRD: "true"
+      TRAEFIK_PROVIDERS_KUBERNETESCRD_INGRESSCLASS: traefik
+    volumes:
+      - ./kubeconfig.yaml:/kube/kubeconfig:ro
