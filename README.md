@@ -23,7 +23,7 @@ An install script sets everything up. You choose one of two installation types:
 ## Install
 
 ```bash
-./install.sh
+bash ./install.sh
 ```
 
 The script asks for:
@@ -46,8 +46,8 @@ Then it:
 Options:
 
 ```bash
-./install.sh --yes        # never prompt, fail if a value is missing
-./install.sh --no-start   # write the configuration only
+bash ./install.sh --yes        # never prompt, fail if a value is missing
+bash ./install.sh --no-start   # write the configuration only
 ```
 
 ### Unattended install with `.env`
@@ -58,7 +58,7 @@ when missing:
 ```bash
 cp .env.sample .env
 # fill in INSTALL_TYPE, DASHBOARD_DOMAIN, ACME_EMAIL, ADMIN_USER, ADMIN_PASSWORD
-./install.sh --yes
+bash ./install.sh --yes
 ```
 
 | Variable            | Description                                                          |
@@ -91,7 +91,7 @@ To change the Traefik version later, edit `TRAEFIK_VERSION` in `.env` and run
 - `COMPOSE_FILE` in `.env` is read by Docker Compose v2. If your tool ignores it
   (for example `podman-compose`), pass the files with `-f` instead.
 
-To switch the installation type, run `./install.sh` again with a different
+To switch the installation type, run `bash ./install.sh` again with a different
 `INSTALL_TYPE`.
 
 ## Custom configuration per server
@@ -102,7 +102,7 @@ Settings that only some servers need are kept out of the repo. Examples are in
 ### Compose customizations: `docker-compose.override.yaml`
 
 Copy `examples/docker-compose.override.yaml` to `./docker-compose.override.yaml`,
-uncomment what you need, then run `./install.sh` again. The installer adds the file
+uncomment what you need, then run `bash ./install.sh` again. The installer adds the file
 to `COMPOSE_FILE`. The file is git-ignored.
 
 Compose merges it into `docker-compose.yaml`: new environment keys are added, and
@@ -144,7 +144,7 @@ and run `docker compose up -d`.
 
 Available at `https://<DASHBOARD_DOMAIN>` with the username and password you
 gave the installer. To change the password, set `ADMIN_PASSWORD` and run
-`./install.sh --yes` again, or edit `dynamic/dashboard.yaml` with a hash from
+`bash ./install.sh --yes` again, or edit `dynamic/dashboard.yaml` with a hash from
 `htpasswd -nB username`.
 
 ### Providers

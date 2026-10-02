@@ -1,6 +1,6 @@
 services:
   traefik:
-    image: ${TRAEFIK_IMAGE:-traefik}:${TRAEFIK_VERSION:?TRAEFIK_VERSION is not set, run ./install.sh}
+    image: ${TRAEFIK_IMAGE:-traefik}:${TRAEFIK_VERSION:?TRAEFIK_VERSION is not set, run bash ./install.sh}
     restart: unless-stopped
     network_mode: host
     environment:
@@ -21,7 +21,7 @@ services:
       TRAEFIK_ENTRYPOINTS_WEB_HTTP_REDIRECTIONS_ENTRYPOINT_TO: websecure
       TRAEFIK_ENTRYPOINTS_WEB_HTTP_REDIRECTIONS_ENTRYPOINT_SCHEME: https
 
-      TRAEFIK_CERTIFICATESRESOLVERS_LE_ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is not set, run ./install.sh}
+      TRAEFIK_CERTIFICATESRESOLVERS_LE_ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is not set, run bash ./install.sh}
       TRAEFIK_CERTIFICATESRESOLVERS_LE_ACME_STORAGE: /letsencrypt/acme.json
       TRAEFIK_CERTIFICATESRESOLVERS_LE_ACME_HTTPCHALLENGE: "true"
       TRAEFIK_CERTIFICATESRESOLVERS_LE_ACME_HTTPCHALLENGE_ENTRYPOINT: web

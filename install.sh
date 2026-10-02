@@ -4,7 +4,7 @@
 # Every value is read from the environment or from .env first and only asked
 # for when missing. Chosen values are saved back to .env (except the password).
 #
-# Usage: ./install.sh [--yes] [--no-start]
+# Usage: bash ./install.sh [--yes] [--no-start]
 #   --yes, -y    never prompt; fail if a required value is missing
 #   --no-start   write the configuration but do not start Traefik
 
